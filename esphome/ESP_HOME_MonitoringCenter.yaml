@@ -1,0 +1,322 @@
+#Sensor Entity IDs should be replaced with your actual IDs ,  this is a template only !!!
+
+
+esphome:
+  name: remote-display-screen
+  friendly_name: Remote Display Screen
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+  encryption:
+    key: "ENTER YOURS HERE" # usually system generated if you create with ESP Home
+
+ota:
+  - platform: esphome
+    password: "ENTER YOURS HERE"  # usually system generated if you create with ESP Home
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  ap:
+    ssid: "Remote-Display-Screen"
+    password: "ENTER YOURS HERE" # usually system generated if you create with ESP Home
+
+web_server:
+  port: 80
+
+captive_portal:
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+globals:
+  - id: page
+    type: int
+    restore_value: no
+    initial_value: '0'   # 0=Printers, 1=Air Quality
+
+font:
+  - file: "gfonts://Roboto"
+    id: font_title
+    size: 28
+  - file: "gfonts://Roboto"
+    id: font_value
+    size: 22
+  - file: "gfonts://Roboto"
+    id: font_label
+    size: 16
+
+sensor:
+  - platform: homeassistant
+    id: aqi
+    entity_id: sensor.game_room_air_quality_s2_air_quality_index # replace with your id
+
+  - platform: homeassistant
+    id: eco2
+    entity_id: sensor.game_room_air_quality_s2_eco2 # replace with your id
+
+  - platform: homeassistant
+    id: tvoc
+    entity_id: sensor.game_room_air_quality_s2_tvoc # replace with your id
+
+  - platform: homeassistant
+    id: printer_progress
+    entity_id: sensor.bambu_p1s_1_print_progress # replace with your id
+    accuracy_decimals: 0
+
+  - platform: homeassistant
+    id: printer2_progress
+    entity_id: sensor.p1s_2_print_progress # replace with your id
+    accuracy_decimals: 0
+
+text_sensor:
+  - platform: homeassistant
+    id: printer_status
+    entity_id: sensor.bambu_p1s_1_print_status # replace with your id
+
+  - platform: homeassistant
+    id: printer_remaining
+    entity_id: sensor.bambu_p1s_1_remaining_time # replace with your id
+
+  - platform: homeassistant
+    id: printer2_status
+    entity_id: sensor.p1s_2_print_status # replace with your id
+
+  - platform: homeassistant
+    id: printer2_remaining
+    entity_id: sensor.p1s_2_remaining_time # replace with your id
+
+display:
+  - platform: ili9xxx
+    model: ili9341
+    dc_pin: GPIO27
+    cs_pin: GPIO14
+    reset_pin: GPIO4
+    invert_colors: false
+    rotation: 270
+    color_palette: 8BIT
+    update_interval: 2s
+    lambda: |-
+      // ---------- COLORS ----------
+      auto BLACK    = Color(0, 0, 0);
+      auto WHITE    = Color(255, 255, 255);
+      auto GRAY     = Color(170, 170, 170);
+      auto DARKGRAY = Color(90, 90, 90);
+
+      auto GREEN  = Color(0, 200, 80);
+      auto YELLOW = Color(255, 200, 0);
+      auto RED    = Color(255, 70, 70);
+      auto BLUE   = Color(0, 140, 255);
+      auto PURPLE = Color(160, 80, 255);
+
+      int w = it.get_width();
+      int h = it.get_height();
+      it.fill(BLACK);
+
+      // ---------- HEADER ----------
+      int header_h = 34;
+      it.filled_rectangle(0, 0, w, header_h, Color(20, 20, 20));
+      it.print(8, 6, id(font_title), YELLOW, "Print Room");
+      it.filled_rectangle(0, header_h - 1, w, 1, DARKGRAY);
+
+      // ---------- LAYOUT ----------
+      int margin = 8;
+      int gap = 6;
+
+      int btn_h = 26;
+      int btn_y = h - btn_h;
+
+      int top_y = header_h + 6;
+      int avail_h = h - top_y - margin - btn_h;   // reserve space for button bar
+
+      // ---------- CARD DRAW HELPER ----------
+      auto draw_box = [&](int x, int y, int bw, int bh,
+                    const char* label,
+                    const char* value,
+                    const char* unit,
+                    Color accent,
+                    Color label_color = Color(170, 170, 170)) {
+
+        it.filled_rectangle(x, y, bw, bh, Color(18, 18, 18));
+        it.rectangle(x, y, bw, bh, Color(45, 45, 45));
+        it.filled_rectangle(x, y, 5, bh, accent);
+
+        // label (now controllable)
+        it.print(x + 10, y + 6, id(font_label), label_color, label);
+
+        if (unit && unit[0] != '\0') {
+          it.print(x + bw - 44, y + 6, id(font_label), DARKGRAY, unit);
+        }
+
+        // value stays white (as-is)
+        it.print(x + 10, y + 28, id(font_value), WHITE, value);
+      };
+
+      // ---------- AIR QUALITY COMPUTE ----------
+      Color aqi_color = BLUE;
+      if (!isnan(id(aqi).state)) {
+        float v = id(aqi).state;
+        if (v < 1.5) aqi_color = GREEN;
+        else if (v < 2.5) aqi_color = YELLOW;
+        else aqi_color = RED;
+      }
+
+      Color eco2_color = BLUE;
+      if (!isnan(id(eco2).state)) {
+        float v = id(eco2).state;
+        if (v < 800) eco2_color = GREEN;
+        else if (v < 1200) eco2_color = YELLOW;
+        else eco2_color = RED;
+      }
+
+      Color tvoc_color = BLUE;
+      if (!isnan(id(tvoc).state)) {
+        float v = id(tvoc).state;
+        if (v < 250) tvoc_color = GREEN;
+        else if (v < 600) tvoc_color = YELLOW;
+        else tvoc_color = RED;
+      }
+
+      char aqi_str[12];
+      char eco2_str[12];
+      char tvoc_str[12];
+
+      if (!isnan(id(aqi).state))   snprintf(aqi_str,  sizeof(aqi_str),  "%.1f", id(aqi).state);
+      else                         snprintf(aqi_str,  sizeof(aqi_str),  "--");
+
+      if (!isnan(id(eco2).state))  snprintf(eco2_str, sizeof(eco2_str), "%.0f", id(eco2).state);
+      else                         snprintf(eco2_str, sizeof(eco2_str), "--");
+
+      if (!isnan(id(tvoc).state))  snprintf(tvoc_str, sizeof(tvoc_str), "%.0f", id(tvoc).state);
+      else                         snprintf(tvoc_str, sizeof(tvoc_str), "--");
+
+      // ---------- PRINTER 1 ----------
+      std::string p1_status = id(printer_status).state;
+      std::string p1_remain = id(printer_remaining).state;
+      float p1_prog = id(printer_progress).state;
+
+      if (p1_status.empty()) p1_status = "--";
+      if (p1_remain.empty()) p1_remain = "--";
+      if (p1_status.size() > 10) p1_status = p1_status.substr(0, 10);
+
+      Color p1_color = BLUE;
+      if (p1_status == "printing" || p1_status == "running") p1_color = GREEN;
+      else if (p1_status == "paused" || p1_status == "pause") p1_color = YELLOW;
+      else if (p1_status == "failed" || p1_status == "error") p1_color = RED;
+      else if (p1_status == "finished" || p1_status == "complete" || p1_status == "finish") p1_color = PURPLE;
+
+      char p1_prog_str[12];
+      if (!isnan(p1_prog)) snprintf(p1_prog_str, sizeof(p1_prog_str), "%.0f%%", p1_prog);
+      else snprintf(p1_prog_str, sizeof(p1_prog_str), "--");
+
+      // ---------- PRINTER 2 ----------
+      std::string p2_status = id(printer2_status).state;
+      std::string p2_remain = id(printer2_remaining).state;
+      float p2_prog = id(printer2_progress).state;
+
+      if (p2_status.empty()) p2_status = "--";
+      if (p2_remain.empty()) p2_remain = "--";
+      if (p2_status.size() > 10) p2_status = p2_status.substr(0, 10);
+
+      Color p2_color = BLUE;
+      if (p2_status == "printing" || p2_status == "running") p2_color = GREEN;
+      else if (p2_status == "paused" || p2_status == "pause") p2_color = YELLOW;
+      else if (p2_status == "failed" || p2_status == "error") p2_color = RED;
+      else if (p2_status == "finished" || p2_status == "complete" || p2_status == "finish") p2_color = PURPLE;
+
+      char p2_prog_str[12];
+      if (!isnan(p2_prog)) snprintf(p2_prog_str, sizeof(p2_prog_str), "%.0f%%", p2_prog);
+      else snprintf(p2_prog_str, sizeof(p2_prog_str), "--");
+
+      // ---------- PAGE DRAW ----------
+      if (id(page) == 0) {
+        // ===== PRINTERS PAGE (6 boxes) =====
+        int row_h = (avail_h - (gap * 2)) / 3;
+
+        int col_w = (w - (margin * 2) - gap) / 2;
+        int left_x  = margin;
+        int right_x = margin + col_w + gap;
+
+        int y1 = top_y;
+        int y2 = top_y + row_h + gap;
+        int y3 = top_y + (row_h + gap) * 2;
+
+        // Left column = Bambu 1
+        draw_box(left_x,  y1, col_w, row_h, "Bambu 1",   p1_status.c_str(), "", p1_color, YELLOW);
+        draw_box(left_x,  y2, col_w, row_h, "Progress",  p1_prog_str,       "", p1_color, GRAY);
+        draw_box(left_x,  y3, col_w, row_h, "Remaining", p1_remain.c_str(), "", p1_color, GRAY);
+
+        // Right column = Bambu 2
+        draw_box(right_x, y1, col_w, row_h, "Bambu 2",   p2_status.c_str(), "", p2_color, YELLOW);
+        draw_box(right_x, y2, col_w, row_h, "Progress",  p2_prog_str,       "", p2_color, GRAY);
+        draw_box(right_x, y3, col_w, row_h, "Remaining", p2_remain.c_str(), "", p2_color, GRAY);
+
+      } else {
+        // ===== AIR QUALITY PAGE (3 bigger boxes) =====
+        int row_h = (avail_h - (gap * 2)) / 3;
+        int x = margin;
+        int bw = w - (margin * 2);
+
+        int y1 = top_y;
+        int y2 = top_y + row_h + gap;
+        int y3 = top_y + (row_h + gap) * 2;
+
+        draw_box(x, y1, bw, row_h, "AQI",  aqi_str,  "",    aqi_color);
+        draw_box(x, y2, bw, row_h, "eCO2", eco2_str, "ppm", eco2_color);
+        draw_box(x, y3, bw, row_h, "TVOC", tvoc_str, "ppb", tvoc_color);
+      }
+
+      // ---------- BOTTOM BUTTON BAR ----------
+      it.filled_rectangle(0, btn_y, w, btn_h, Color(30, 30, 30));
+
+      // Left button: Printers
+      it.filled_rectangle(0, btn_y, w/2, btn_h, (id(page) == 0) ? BLUE : DARKGRAY);
+      it.print(12, btn_y + 5, id(font_label), WHITE, "Printers");
+
+      // Right button: Air Quality
+      it.filled_rectangle(w/2, btn_y, w/2, btn_h, (id(page) == 1) ? BLUE : DARKGRAY);
+      it.print(w/2 + 12, btn_y + 5, id(font_label), WHITE, "Air Quality");
+
+touchscreen:
+  - platform: xpt2046
+    cs_pin: GPIO25
+    interrupt_pin: GPIO26
+    update_interval: 120ms
+    threshold: 400
+
+    calibration:
+      x_min: 340
+      x_max: 3760
+      y_min: 240
+      y_max: 3760
+
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: true
+
+    on_touch:
+      - lambda: |-
+          const int w = 320;
+          const int h = 240;
+          const int btn_h = 26;
+          const int btn_y = h - btn_h;
+
+          // Only react if tap is in bottom bar
+          if (touch.y < btn_y) return;
+
+          // Left half = Printers
+          if (touch.x < (w / 2)) {
+            id(page) = 0;
+          } else {
+            id(page) = 1;
+          }
