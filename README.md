@@ -1,6 +1,10 @@
 # Print Room Notification / Monitor System
 ESP32 + 2.8" TFT Touchscreen (Home Assistant / ESPHome)
 
+<p align="center">
+  <img src="images/PrinterStatusPic.jpg" width="500">
+</p>
+
 A compact, always-on **2.8" TFT touchscreen status display** built around an **ESP32** and **Home Assistant**.
 Designed for print rooms and workshops to provide real-time visibility into **air quality** and **3D printer status** without dashboards, tablets, or cloud services.
 
