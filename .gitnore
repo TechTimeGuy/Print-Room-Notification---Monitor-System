@@ -1,0 +1,25 @@
+# Secrets / credentials
+secrets.yaml
+secrets.h
+*.secret*
+*.env
+
+# ESPHome build artifacts
+.esphome/
+.build/
+.pio/
+
+# Logs / temp files
+*.log
+*.tmp
+*.bak
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Backup / export files
+*.zip
+*.rar
