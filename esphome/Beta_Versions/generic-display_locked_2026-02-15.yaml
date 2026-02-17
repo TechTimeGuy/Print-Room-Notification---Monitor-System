@@ -1,0 +1,472 @@
+esphome:
+  name: generic-display
+  friendly_name: Generic Display
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: ""
+
+ota:
+  - platform: esphome
+    password: ""
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  manual_ip:
+    static_ip: ${my_ip}
+    gateway: ${my_gateway}
+    subnet: ${my_subnet}
+    dns1: ${my_dns1}
+    dns2: ${my_dns2}
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Generic-Display Fallback Hotspot"
+    password: ""
+
+web_server:
+  port: 80
+
+captive_portal:
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+
+globals:
+  - id: page
+    type: int
+    restore_value: yes
+    initial_value: '0'   # 0=Weather, 1=Printer-1, 2=Printer-2
+
+  - id: last_page
+    type: int
+    restore_value: no
+    initial_value: '-1'  # forces first draw to count as a "page change"
+
+substitutions:
+  weather_entity: weather.forecast_home
+  temp_sensor: sensor.living_room_t_h_sensor_temperature
+  light_2: light.kitchen_bulb_2
+  light_1: light.kitchen_bulb
+  my_ip: 192.168.1.25
+  my_gateway: 192.168.1.254
+  my_subnet: 255.255.255.0
+  my_timezone: America/New_York
+  my_dns1: 192.168.1.254
+  my_dns2: 8.8.8.8
+
+time:
+  - platform: sntp
+    id: current_time
+    timezone:  ${my_timezone}
+
+# Define a font for the display
+font:
+  - file: "gfonts://Roboto"
+    id: my_font
+    size: 20
+
+  - file: "gfonts://Roboto"
+    id: temp_font
+    size: 17  
+  # Define Weather Glyphs
+  - file: 'fonts/materialdesignicons-webfont.ttf'
+    id: font4
+    size: 70
+    glyphs:
+      - "\U000F0594" #"clear-night"
+      - "\U000F0590" #"cloudy"
+      - "\U000F0591" #"fog"
+      - "\U000F0592" #"hail"
+      - "\U000F0593" #"lightning"
+      - "\U000F067E" #"lightning-rainy"
+      - "\U000F0595" #"partlycloudy"
+      - "\U000F0596" #"pouring"
+      - "\U000F0597" #"rainy"
+      - "\U000F0598" #"snowy"
+      - "\U000F067F" #"snowy-rainy"
+      - "\U000F0599" #"sunny"
+      - "\U000F059D" #"windy"
+      - "\U000F059E" #"windy-variant"  
+
+# Define colors for the display
+color:
+  - id: ha_blue
+    hex: 51c0f2
+
+  - id: ha_red
+    red: 100%
+    green: 20%
+    blue: 25%
+    white: 0%
+
+  - id: ha_orange
+    hex: EF6C00
+
+  - id: ha_green
+    red: 0%
+    green: 50%
+    blue: 0%
+    white: 0%
+
+  - id: my_golden
+    red: 93%
+    green: 80%
+    blue: 38%  
+
+# Define images for the display
+image:
+  - file: "img/basic/light_bulb_off.png"
+    type: RGB
+    id: off_light
+    resize: 100x100 # Optional
+
+  - file: "img/basic/light_bulb_on.png"
+    type: RGB
+    id: on_light
+    resize: 100x100 # Optional  
+
+  - file: "img/basic/light_bulb2.png"
+    type: RGB
+    id: light2
+    resize: 100x100 # Optional
+
+  - file: "img/basic/light_bulb3.png"
+    type: RGB
+    id: light3
+    resize: 100x100 # Optional
+
+  - file: "img/basic/light_bulb4.png"
+    type: RGB
+    id: light4
+    resize: 100x100 # Optional
+
+  - file: "img/basic/light_bulb5.png"
+    type: RGB
+    id: light5
+    resize: 100x100 # Optional
+
+  - file: "img/basic/temp_holder.png"
+    type: RGB
+    id: light6
+    resize: 100x100 # Optional 
+
+  - file: "img/printers/printer_image1.png"
+    type: RGB
+    id: printer1 
+
+  - file: "img/printers/printer_image2.png"
+    type: RGB
+    id: printer2   
+
+
+# Define touchable areas and or HA Entities
+binary_sensor:
+  - platform: touchscreen
+    id: touch_button1_area
+    name: "Button 1 Area"
+    x_min: 15
+    x_max: 85
+    y_min: 15
+    y_max: 85
+    on_press:
+      then:
+        - lambda: |-
+            ESP_LOGD("touch_btn", "Button 1 pressed!");
+        - delay: 500ms
+        - homeassistant.service:
+            service: light.toggle
+            data:
+              entity_id: ${light_1}
+
+  - platform: touchscreen
+    id: touch_button2_area
+    name: "Button 2 Area"
+    x_min: 125
+    x_max: 195
+    y_min: 15
+    y_max: 85
+    on_press:
+      then:
+        - lambda: |-
+            ESP_LOGD("touch_btn", "Button 2 pressed!");
+        - delay: 500ms
+        - homeassistant.service:
+            service: light.toggle
+            data:
+              entity_id: ${light_2}
+
+  - platform: touchscreen
+    id: touch_next_page
+    name: "Next Page"
+    x_min: 285
+    x_max: 320
+    y_min: 20
+    y_max: 220
+    on_press:
+      then:
+        - lambda: |-
+            id(page) = (id(page) + 1) % 3;  // 3 pages: 0,1,2
+  - platform: homeassistant
+    name: "Kitchen Light"
+    entity_id: ${light_1}
+    id: kitch_light
+
+  - platform: homeassistant
+    name: "Kitchen Light2"
+    entity_id: ${light_2}
+    id: kitch_light2  
+
+# Define Ha Sensor(s) to recieve data/states
+sensor:
+  - platform: homeassistant
+    id: temperature_sensor
+    entity_id: ${temp_sensor}
+  
+  - platform: homeassistant
+    id: printer_progress
+    entity_id: sensor.bambu_p1s_1_print_progress
+    accuracy_decimals: 0
+
+  - platform: homeassistant
+    id: printer2_progress
+    entity_id: sensor.p1s_2_print_progress
+    accuracy_decimals: 0
+
+  - platform: homeassistant
+    id: printer_remaining_hrs
+    entity_id: sensor.bambu_p1s_1_remaining_time
+    accuracy_decimals: 2
+
+  - platform: homeassistant
+    id: printer2_remaining_hrs
+    entity_id: sensor.p1s_2_remaining_time
+    accuracy_decimals: 2  
+
+
+text_sensor:
+  - platform: homeassistant
+    id: weather_state
+    name: "Current Weather Icon"
+    entity_id: ${weather_entity}
+    internal: true    
+
+  - platform: homeassistant
+    id: printer_status
+    entity_id: sensor.bambu_p1s_1_print_status
+
+  - platform: homeassistant
+    id: printer2_status
+    entity_id: sensor.p1s_2_print_status
+
+
+
+# We Setup our Display   and add our Drawings   
+display:
+  - platform: ili9xxx
+    model: ili9341
+    dc_pin: GPIO27
+    cs_pin: GPIO14
+    reset_pin: GPIO4
+    invert_colors: false
+    color_palette: 8BIT
+    update_interval: 1s
+    rotation: 270
+    # Lets Build our Drawings
+    lambda: |-
+
+      //===== Set up Glyphs Mapping
+
+      std::map<std::string, std::string> weather_icon_map
+        {
+          {"clear-night", "\U000F0594"},
+          {"cloudy", "\U000F0590"},
+          {"fog", "\U000F0591"},
+          {"hail", "\U000F0592"},
+          {"lightning", "\U000F0593"},
+          {"lightning-rainy", "\U000F067E"},
+          {"partlycloudy", "\U000F0595"},
+          {"pouring", "\U000F0596"},
+          {"rainy", "\U000F0597"},
+          {"snowy", "\U000F0598"},
+          {"snowy-rainy", "\U000F067F"},
+          {"sunny", "\U000F0599"},
+          {"windy", "\U000F059D"},
+          {"windy-variant", "\U000F059E"},
+        };
+
+       // ----- Page change detection -----
+      bool page_changed = (id(page) != id(last_page));
+      if (page_changed) {
+        id(last_page) = id(page);
+      } 
+      // ---------- PAGE DRAW ----------
+      if (id(page) == 0) {
+        // ===== Weather PAGE  =====
+        //===== Draw Page 0 Weather/Lighting Page
+       if (id(kitch_light).state) {
+        it.image(0, 0, id(on_light));
+      } else {
+        it.image(0, 0, id(off_light));
+      }
+      //2nd Image 
+      if (id(kitch_light2).state) {
+        it.image(110, 0, id(on_light));
+      } else {
+        it.image(110, 0, id(light2));
+      }
+      //3rd Image 
+      if (id(kitch_light).state) {
+        it.image(220, 0, id(light3));
+      } else {
+        it.image(220, 0, id(light3));
+      }
+      //4th Image 
+      if (id(kitch_light).state) {
+        it.image(0, 120, id(light4));
+      } else {
+        it.image(0, 120, id(light4));
+      }
+      //5th Image 
+      if (id(kitch_light).state) {
+        it.image(110, 120, id(light5));
+      } else {
+        it.image(110, 120, id(light5));
+      }
+      //6th Image 
+      it.image(220, 120, id(light6));
+
+      //===== Add Weather Icons
+      if (id(weather_state).has_state()) {
+        it.printf(235, 135, id(font4), id(ha_orange), TextAlign::TOP_LEFT, weather_icon_map[id(weather_state).state.c_str()].c_str());
+      }
+      //===== Add Temp
+      it.printf(0, 221, id(temp_font), ha_blue, "%.1fF", id(temperature_sensor).state);
+      //===== Date/Time Logic
+      auto now = id(current_time).now();
+      if (now.is_valid()) {
+        it.strftime(65, 221, id(temp_font), id(ha_blue), "%I:%M %p", now);
+        it.strftime(165, 221, id(temp_font), id(ha_blue), "%a %b %d %y", now);
+      } else {
+        it.print(65, 221, id(temp_font), id(ha_orange), "Time syncing...");
+      }
+      } else if (id(page) == 1) {
+      // draw page 1 (Printer 1 Page)
+      // ---------- PRINTER 1 ----------
+      std::string p1_status = id(printer_status).state;
+      float p1_prog = id(printer_progress).state;
+      float p1_remain_hrs = id(printer_remaining_hrs).state;
+
+      if (p1_status.empty()) p1_status = "--";
+      if (p1_status.size() > 10) p1_status = p1_status.substr(0, 10);
+
+      // Progress string (e.g. "52%")
+      char p1_prog_str[12];
+      if (!isnan(p1_prog)) snprintf(p1_prog_str, sizeof(p1_prog_str), "%.0f%%", p1_prog);
+      else snprintf(p1_prog_str, sizeof(p1_prog_str), "--");
+
+      // ETA string (convert decimal hours to minutes / h+m)
+      char eta1_line[24];
+      if (!isnan(p1_remain_hrs)) {
+        int total_min = (int) lroundf(p1_remain_hrs * 60.0f);
+        int h = total_min / 60;
+        int m = total_min % 60;
+
+        if (h > 0) snprintf(eta1_line, sizeof(eta1_line), "ETA: %dh %02dm", h, m);
+        else       snprintf(eta1_line, sizeof(eta1_line), "ETA: %dm", m);
+      } else {
+        snprintf(eta1_line, sizeof(eta1_line), "ETA: --");
+      }
+
+      // Draw
+      it.image(0, 0, id(printer1));
+      it.print(95, 110, id(temp_font), id(ha_orange), p1_status.c_str());
+
+      char prog_line[24];
+      snprintf(prog_line, sizeof(prog_line), "Progress: %s", p1_prog_str);
+      it.print(95, 130, id(temp_font), id(ha_orange), prog_line);
+
+      it.print(95, 150, id(temp_font), id(ha_orange), eta1_line);
+
+
+      } else if (id(page) == 2) {
+        // ---------- PRINTER 2 ----------
+      std::string p2_status = id(printer2_status).state;
+      float p2_prog = id(printer2_progress).state;
+      float p2_remain_hrs = id(printer2_remaining_hrs).state;
+
+      if (p2_status.empty()) p2_status = "--";
+      if (p2_status.size() > 10) p2_status = p2_status.substr(0, 10);
+
+      // Progress string
+      char p2_prog_str[12];
+      if (!isnan(p2_prog)) snprintf(p2_prog_str, sizeof(p2_prog_str), "%.0f%%", p2_prog);
+      else snprintf(p2_prog_str, sizeof(p2_prog_str), "--");
+
+      // ETA conversion (decimal hours → h + m)
+      char eta2_line[24];
+      if (!isnan(p2_remain_hrs)) {
+        int total_min = (int) lroundf(p2_remain_hrs * 60.0f);
+        int h = total_min / 60;
+        int m = total_min % 60;
+
+        if (h > 0) snprintf(eta2_line, sizeof(eta2_line), "ETA: %dh %02dm", h, m);
+        else       snprintf(eta2_line, sizeof(eta2_line), "ETA: %dm", m);
+      } else {
+        snprintf(eta2_line, sizeof(eta2_line), "ETA: --");
+      }
+
+      // Draw
+      it.image(0, 0, id(printer2));
+      it.print(95, 110, id(temp_font), id(ha_orange), p2_status.c_str());
+
+      char prog2_line[24];
+      snprintf(prog2_line, sizeof(prog2_line), "Progress: %s", p2_prog_str);
+      it.print(95, 130, id(temp_font), id(ha_orange), prog2_line);
+
+      it.print(95, 150, id(temp_font), id(ha_orange), eta2_line);
+
+      }
+     
+      
+
+# We setup our touchscreen and calibratiuon
+touchscreen:
+    #height: 320
+    #width: 240
+  - platform: xpt2046
+    id: my_touchscreen
+    cs_pin: GPIO25
+    interrupt_pin: GPIO26
+    update_interval: 50ms
+    # Calibration values may need adjustment for your specific screen
+    calibration:
+      x_min: 300
+      x_max: 3850
+      y_min: 395
+      y_max: 3880
+    transform:
+      swap_xy: true
+      mirror_x: false
+      mirror_y: false
+    on_touch:
+      then:
+        # Action to perform on touch, e.g., logging coordinates
+        - lambda: |-
+            ESP_LOGI("touch", "Touched at x=%d, y=%d", touch.x, touch.y);
+        # Example: define a binary sensor and toggle it on touch in a specific area
+      
+
